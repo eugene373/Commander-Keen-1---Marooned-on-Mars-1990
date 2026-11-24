@@ -1,0 +1,3 @@
+Copy the original Commander Keen 1 data files into this folder (they are copied next to the exe at build time):
+LEVEL*.CK1  EGAHEAD.CK1  EGALATCH.CK1  EGASPRIT.CK1  SOUNDS.CK1
+(KEEN1.EXE itself is NOT needed and must not be copied: the port is its own program.)
