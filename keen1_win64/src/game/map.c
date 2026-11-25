@@ -42,7 +42,15 @@ static void map_draw(Game *g, const Obj *k)
     gfx_text(g, 1, 1, buf);
 }
 
-/* Replace a finished level's marker with the "done" tiles (0x4D single, 0x4E.. for 2-wide / 2x2 cities). */
+/* Replace a finished level's marker with the "done" tiles (0x4D single, 0x4E.. for 2-wide / 2x2 cities).
+ * Levels 1 and 7 have a 2x2 sign but only half of it carries the level marker: the other column/row is an
+ * invisible wall (plane-1 bit 15). Grow the box over those wall tiles so the whole sign is drawn. */
+static int g_gate_level;
+static int is_wall(const Level *m, int x, int y)
+{
+    return x >= 0 && y >= 0 && x < m->w && y < m->h && m->p1[y * m->w + x] == (0x8000 | g_gate_level);
+}
+
 static void mark_done(Game *g, int level)
 {
     int x, y, minx = 9999, maxx = -1, miny = 9999, maxy = -1;
@@ -56,13 +64,26 @@ static void mark_done(Game *g, int level)
                 if (y > maxy) maxy = y;
             }
     if (maxx < 0) return;
-    for (y = miny; y <= maxy; y++)
-        for (x = minx; x <= maxx; x++)
-            if (m->p1[y * m->w + x] == level) {
-                int w = maxx - minx + 1, h = maxy - miny + 1;
+    g_gate_level = level;
+    if (maxx == minx && maxy > miny) {                 /* 1 wide, 2 tall: the other column is an invisible wall */
+        int ok_r = 1, ok_l = 1;
+        for (y = miny; y <= maxy; y++) { ok_r &= is_wall(m, maxx + 1, y); ok_l &= is_wall(m, minx - 1, y); }
+        if (ok_r) maxx++; else if (ok_l) minx--;
+    }
+    if (maxy == miny && maxx > minx) {                 /* 2 wide, 1 tall: the other row is an invisible wall */
+        int ok_b = 1, ok_t = 1;
+        for (x = minx; x <= maxx; x++) { ok_b &= is_wall(m, x, maxy + 1); ok_t &= is_wall(m, x, miny - 1); }
+        if (ok_t) miny--; else if (ok_b) maxy++;
+    }
+    {
+        int w = maxx - minx + 1, h = maxy - miny + 1;
+        for (y = miny; y <= maxy; y++)
+            for (x = minx; x <= maxx; x++) {
                 m->p0[y * m->w + x] = (w == 1 && h == 1) ? 0x4D : (uint16_t)(0x4E + (y - miny) * 2 + (x - minx));
-                m->p1[y * m->w + x] = 0;
+                /* the level's marker and its gate (invisible wall 0x8000|level) both go away: the way on is open */
+                if (m->p1[y * m->w + x] == level || m->p1[y * m->w + x] == (0x8000 | level)) m->p1[y * m->w + x] = 0;
             }
+    }
 }
 
 static void place_keen(Obj *k, int32_t x, int32_t y)
